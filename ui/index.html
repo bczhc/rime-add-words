@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="utf-8"/>
+    <title>Wubi</title>
+    <script src="./bootstrap.js"></script>
+</head>
+<body>
+Rime词库路径：<span id="path-span">
+    <button id="pick-file-button">选择文件</button>
+</span>
+<br>
+<button id="load-button">加载</button>
+<br>
+<label for="word-input"></label><input type="text" id="word-input" placeholder="词条"><br>
+<label for="code-input"></label><input type="text" id="code-input" placeholder="编码"><br>
+<button id="add-button">添加</button>
+</body>
+<script>
+    window.onload = () => {
+        let loadButton = $("#load-button");
+        let pickFileButton = $("#pick-file-button");
+        let pathSpan = $("#path-span");
+        let addButton = $("#add-button");
+        let wordInput = $("#word-input");
+        let codeInput = $("#code-input");
+
+        let load = false;
+        let dictPath = null;
+
+        pickFileButton.click(() => {
+            tauriInvoke("pick_file").then(file => {
+                if (file != null) {
+                    dictPath = file;
+                    pathSpan.text(dictPath)
+                }
+            })
+        });
+
+        loadButton.click(() => {
+            let filePath = pathSpan.text();
+            console.log(filePath);
+            loadButton.prop("disabled", true);
+            tauriInvoke("load_file", {path: filePath}).then(() => load = true)
+                .catch(() => {
+                    loadButton.prop("disabled", false);
+                    tauriDialog.message("Failed to open file");
+                });
+        });
+
+        wordInput.on("input", () => {
+            if (!load) return;
+            tauriInvoke("compose_code", {word: wordInput.val()}).then(result => {
+                if (result != null) {
+                    codeInput.val(result)
+                } else {
+                    codeInput.val("");
+                }
+            })
+        });
+
+        addButton.click(() => {
+            if (!load) return;
+            console.assert(dictPath != null)
+            tauriInvoke("add_word", {
+                word: wordInput.val(),
+                code: codeInput.val()
+            }).then(() => {
+                tauriInvoke("write_to_file", {path: dictPath}).then(() => {
+                    tauriDialog.message("添加成功")
+                })
+            }).catch(e => {
+                tauriDialog.message(`Error: ${e}`)
+            })
+        });
+    }
+</script>
+</html>
