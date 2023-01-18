@@ -1,8 +1,8 @@
 {
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "cd ui; npm run build",
-    "devPath": "../ui/dist",
+    "beforeDevCommand": "cd ui && npm run dev",
+    "beforeBuildCommand": "cd ui && npm run build",
+    "devPath": "http://localhost:1420",
     "distDir": "../ui/dist",
     "withGlobalTauri": true
   },
