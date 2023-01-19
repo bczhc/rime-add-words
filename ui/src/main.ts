@@ -79,6 +79,8 @@ function onLoaded() {
     addWordsWordInputEl.on("input", () => {
         tauri.composeCode(addWordsWordInputEl.val() as string).then(result => {
             addWordsCodeInputEl.val(result || '');
+            codeInput.val(addWordsCodeInputEl.val() as string);
+            updateWordsList();
         })
     });
 
