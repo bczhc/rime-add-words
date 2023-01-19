@@ -12,10 +12,11 @@ use std::io::{BufRead, BufReader, BufWriter};
 use std::sync::Mutex;
 use tauri::InvokeError;
 
-static DICT: Lazy<Mutex<Option<BTreeMap<String, Vec<String>>>>> = Lazy::new(|| Mutex::new(None));
-static HEADER: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
-static INVERSE_DICT: Lazy<Mutex<Option<HashMap<String, Vec<String>>>>> =
-    Lazy::new(|| Mutex::new(None));
+type StaticType<T> = Lazy<Mutex<Option<T>>>;
+
+static DICT: StaticType<BTreeMap<String, Vec<String>>> = Lazy::new(|| Mutex::new(None));
+static HEADER: StaticType<String> = Lazy::new(|| Mutex::new(None));
+static INVERSE_DICT: StaticType<HashMap<String, Vec<String>>> = Lazy::new(|| Mutex::new(None));
 
 fn main() {
     tauri::Builder::default()
@@ -26,6 +27,8 @@ fn main() {
             write_to_file,
             compose_code,
             add_word,
+            query_words,
+            update_words,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -201,4 +204,20 @@ fn add_word(code: &str, word: &str) -> Result<(), InvokeError> {
         words.push(word.into());
     }
     Ok(())
+}
+
+#[tauri::command]
+fn query_words(code: &str) -> Vec<String> {
+    let mut guard = mutex_lock!(DICT);
+    let dict = guard.as_mut().unwrap();
+    dict.get(code).cloned().unwrap_or_default()
+}
+
+#[tauri::command]
+fn update_words(code: &str, words: Vec<&str>) {
+    let mut guard = mutex_lock!(DICT);
+    let dict = guard.as_mut().unwrap();
+    if let Some(v) = dict.get_mut(code) {
+        *v = Vec::from_iter(words.iter().map(|x| String::from(*x)))
+    }
 }

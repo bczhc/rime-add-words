@@ -2,8 +2,9 @@
 <html lang="zh">
 <head>
     <meta charset="utf-8"/>
-    <title>Wubi</title>
+    <title></title>
     <script type="module" src="src/main.ts" defer></script>
+    <link rel="stylesheet" href="src/main.css">
 </head>
 <body>
 Rime词库路径：<span id="path-span">
@@ -12,8 +13,26 @@ Rime词库路径：<span id="path-span">
 <br>
 <button id="load-button">加载</button>
 <br>
-<label for="word-input"></label><input type="text" id="word-input" placeholder="词条"><br>
-<label for="code-input"></label><input type="text" id="code-input" placeholder="编码"><br>
-<button id="add-button">添加</button>
+<div id="wubi-content-div">
+    <label>
+        <input type="text" placeholder="编码" id="code-input">
+    </label><br>
+    <!--suppress HtmlUnknownTag -->
+    <li hidden="hidden" id="li-template">
+        <span id="word-span"></span>
+        <button id="delete-btn">删除</button>
+    </li>
+    <ul id="words-list">
+    </ul>
+
+    <div id="add-words-div">
+        <span>加词</span><br>
+        <label for="add-words-word-input"></label><input type="text" id="add-words-word-input" placeholder="词条">
+        <br>
+        <label for="add-words-code-input"></label><input type="text" id="add-words-code-input" placeholder="编码">
+        <br>
+        <button id="add-button">添加</button>
+    </div>
+</div>
 </body>
 </html>

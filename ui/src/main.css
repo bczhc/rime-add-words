@@ -1,0 +1,25 @@
+#words-list > li {
+    font-size: large;
+    user-select: none;
+    font-family: sans-serif;
+    border: solid 1px gray;
+    margin-bottom: -1px;
+    padding-left: 4px;
+}
+
+#words-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* noinspection CssUnusedSymbol */
+.blue-background {
+    background-color: aqua;
+}
+
+#add-words-div {
+    border: solid 1px black;
+    padding: 5px;
+    margin-top: 5px;
+}
