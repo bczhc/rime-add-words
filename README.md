@@ -6,4 +6,5 @@
 
 构建：`cargo tauri build`
 
-![Screenshot](https://user-images.githubusercontent.com/49330580/213202182-81337fee-4883-422d-905f-b370a7f8c7b5.png)
+![Screenshot](https://user-images.githubusercontent.com/49330580/213389629-739076cc-078d-461f-86be-66f528d38744.png)
+
