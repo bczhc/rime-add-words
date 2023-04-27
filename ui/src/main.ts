@@ -5,13 +5,17 @@ import {tauri} from './tauri';
 
 window.addEventListener("DOMContentLoaded", onLoaded);
 
+const CIRCLED_NUMBERS = [...'①②③④⑤⑥⑦⑧⑨⓪'] as string[]
+
+let codeInput: JQuery | null = null
+
 function onLoaded() {
     let wubiContentDiv = $('#wubi-content-div');
     let loadButton = $("#load-button");
     let pickFileButton = $("#pick-file-button");
     let pathSpan = $("#path-span");
     let addButton = $("#add-button");
-    let codeInput = $("#code-input");
+    codeInput = $("#code-input");
     let addWordsCodeInputEl = $('#add-words-code-input');
     let addWordsWordInputEl = $('#add-words-word-input');
 
@@ -20,97 +24,74 @@ function onLoaded() {
     };
     setWubiDivEnabled(false);
 
-    let queriedWords: string[] = []
-
-    let wordsList = new WordsList(queriedWords);
+    let wordsList = new WordsList();
     let dictPath: string | null = null;
 
     let writeToFile = async () => {
         await tauri.writeToFile(dictPath!);
     }
 
-    wordsList.onMoveEnd = data => {
-        let code = codeInput.val() as string;
-        tauri.updateWords(code, data).then(() => {
-            writeToFile().then();
-        });
+    wordsList.onUpdate = async wordList => {
+        let code = codeInput!.val() as string;
+        await tauri.updateWords(code, wordList)
+        await writeToFile()
     }
-    wordsList.onDelete = position => {
-        queriedWords.splice(position, 1);
-        wordsList.refreshList();
-        let code = codeInput.val() as string;
-        tauri.updateWords(code, queriedWords).then(() => {
-            writeToFile().then();
-        })
-    };
 
-    let updateWordsList = () => {
-        let code = codeInput.val() as string;
-        let promise = tauri.queryWords(code);
-        promise.then(words => {
-            queriedWords.length = 0;
-            queriedWords.push(...words);
-            wordsList.refreshList();
-        })
-    };
-    codeInput.on("input", updateWordsList);
-
-    pickFileButton.on("click", () => {
-        tauri.pickFile().then(file => {
-            if (file != null) {
-                dictPath = file;
-                pathSpan.text(dictPath);
-            }
-        });
+    codeInput.on("input", async () => {
+        await wordsList.updateWordsList()
     });
 
-    loadButton.on("click", () => {
+    pickFileButton.on("click", async () => {
+        let file = await tauri.pickFile()
+        if (file != null) {
+            dictPath = file;
+            pathSpan.text(dictPath);
+        }
+    });
+
+    loadButton.on("click", async () => {
         loadButton.prop("disabled", true);
-        tauri.loadFile(dictPath!)
-            .then(() => {
-                setWubiDivEnabled(true);
-            })
-            .catch((e) => {
-                loadButton.prop("disabled", false);
-                dialog.message(`Failed to open file: ${e}`).then();
-            });
+        try {
+            await tauri.loadFile(dictPath!)
+            setWubiDivEnabled(true);
+        } catch (e) {
+            loadButton.prop("disabled", false);
+            dialog.message(`Failed to open file: ${e}`).then();
+        }
     });
 
-    addWordsWordInputEl.on("input", () => {
-        tauri.composeCode(addWordsWordInputEl.val() as string).then(result => {
-            addWordsCodeInputEl.val(result || '');
-            codeInput.val(addWordsCodeInputEl.val() as string);
-            updateWordsList();
-        })
+    addWordsWordInputEl.on("input", async () => {
+        let result = await tauri.composeCode(addWordsWordInputEl.val() as string);
+        addWordsCodeInputEl.val(result || '')
+        codeInput!.val(addWordsCodeInputEl.val() as string);
+        await wordsList.updateWordsList()
     });
 
-    addButton.on("click", () => {
-        tauri.addWord(addWordsWordInputEl.val() as string, addWordsCodeInputEl.val() as string).then(() => {
-            writeToFile().then(() => {
-                dialog.message("添加成功").then();
-                updateWordsList()
-            });
-        }).catch(e => {
+    addButton.on("click", async () => {
+        try {
+            await tauri.addWord(addWordsWordInputEl.val() as string, addWordsCodeInputEl.val() as string)
+            await writeToFile()
+            await dialog.message('添加成功')
+            await wordsList.updateWordsList()
+        } catch (e) {
             dialog.message(`Error: ${e}`).then();
-        })
+        }
     });
 }
 
 class WordsList {
     private listEl = $('#words-list');
-    private readonly data: string[]
+    public readonly data: string[]
 
-    public onMoveEnd: ((data: string[]) => void) | null = null
+    public onUpdate: ((wordList: string[]) => void) | null = null
 
-    public onDelete: ((position: number) => void) | null = null
-
-    constructor(data: string[]) {
-        this.data = data;
+    constructor() {
+        this.data = [];
         Sortable.create(this.listEl[0], {
             animation: 150,
             ghostClass: 'blue-background',
             direction: _ => 'vertical',
-            onEnd: event => {
+            onEnd: async event => {
                 if (this.data == null) {
                     return
                 }
@@ -118,7 +99,9 @@ class WordsList {
                 let newIndex = event.newIndex!;
                 let removed = this.data.splice(oldIndex, 1)[0];
                 this.data.splice(newIndex, 0, removed);
-                this.onMoveEnd?.(this.data);
+                // update entry ordinal numbers
+                this.onUpdate?.(this.data)
+                await this.updateWordsList()
             }
         });
     }
@@ -128,7 +111,7 @@ class WordsList {
             .clone()
             .prop('hidden', false);
         element.find('#word-span').text(text)
-        element.find('#delete-btn').on('click', () => {
+        element.find('#delete-btn').on('click', async () => {
             let index = -1;
             let children = this.listEl.children();
             for (let i = 0; i < children.length; i++) {
@@ -136,16 +119,56 @@ class WordsList {
                     index = i;
                 }
             }
-            this.onDelete?.(index);
+            this.data.splice(index, 1);
+            this.onUpdate?.(this.data)
+            await this.updateWordsList()
         });
+        element.find('#change-position-btn').on('click', async () => {
+            let index = -1;
+            let children = this.listEl.children();
+            for (let i = 0; i < children.length; i++) {
+                if (children[i] == element[0]) {
+                    index = i;
+                }
+            }
+
+            let code = codeInput!.val() as string;
+            let wordList = await tauri.queryWords(code) as (string | undefined)[]
+            let input = prompt('新的位置')
+            if (input == null) return
+            let position = parseInt(input);
+            if (isNaN(position)) return
+            if (position == 0) position = 10
+            let oldWord = wordList[index]
+            wordList[index] = undefined
+            wordList[position - 1] = oldWord
+            for (let i = 0; i < wordList.length; i++) {
+                if (wordList[i] == undefined) {
+                    wordList[i] = CIRCLED_NUMBERS[i]
+                }
+            }
+            this.data.length = 0
+            this.data.push(...wordList as string[])
+            this.onUpdate?.(this.data)
+            await this.updateWordsList()
+        })
         return element;
     }
 
     public refreshList() {
         this.listEl.empty();
-        for (let word of this.data) {
-            let element = this.createLiElement(word);
-            this.listEl.append(element);
+        for (let i = 0; i < this.data.length; i++) {
+            let word = this.data[i]
+            let element = this.createLiElement(`${i + 1} ${word}`)
+            this.listEl.append(element)
         }
+    }
+
+    public async updateWordsList() {
+        let code = codeInput!.val() as string;
+        let words = await tauri.queryWords(code);
+        this.data.length = 0
+        this.data.push(...words)
+        this.refreshList()
     }
 }
