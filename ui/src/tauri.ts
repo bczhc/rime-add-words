@@ -11,9 +11,10 @@ export module tauri {
         return await invoke<string | null>('pick_file');
     }
 
-    export async function loadFile(path: string) {
+    export async function loadFile(dictPath: string, charMapPath: string) {
         return await invoke<void>('load_file', {
-            path: path,
+            dictPath: dictPath,
+            charMapPath: charMapPath
         });
     }
 

@@ -12,8 +12,8 @@ let codeInput: JQuery | null = null
 function onLoaded() {
     let wubiContentDiv = $('#wubi-content-div');
     let loadButton = $("#load-button");
-    let pickFileButton = $("#pick-file-button");
-    let pathSpan = $("#path-span");
+    let dictPickFileButton = $("#dict-pick-file");
+    let charMapPickFileButton = $("#char-map-pick-file");
     let addButton = $("#add-button");
     codeInput = $("#code-input");
     let addWordsCodeInputEl = $('#add-words-code-input');
@@ -26,6 +26,7 @@ function onLoaded() {
 
     let wordsList = new WordsList();
     let dictPath: string | null = null;
+    let charMapPath: string | null = null;
 
     let writeToFile = async () => {
         await tauri.writeToFile(dictPath!);
@@ -41,18 +42,26 @@ function onLoaded() {
         await wordsList.updateWordsList()
     });
 
-    pickFileButton.on("click", async () => {
+    dictPickFileButton.on("click", async () => {
         let file = await tauri.pickFile()
         if (file != null) {
             dictPath = file;
-            pathSpan.text(dictPath);
+            $("#path-span").text(file);
+        }
+    });
+
+    charMapPickFileButton.on("click", async () => {
+        let file = await tauri.pickFile()
+        if (file != null) {
+            charMapPath = file;
+            $("#char-map-span").text(file);
         }
     });
 
     loadButton.on("click", async () => {
         loadButton.prop("disabled", true);
         try {
-            await tauri.loadFile(dictPath!)
+            await tauri.loadFile(dictPath!, charMapPath!)
             setWubiDivEnabled(true);
         } catch (e) {
             loadButton.prop("disabled", false);

@@ -1,22 +1,31 @@
+#![feature(try_blocks)]
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
 
-use app::mutex_lock;
-use nfd::Response;
-use once_cell::sync::Lazy;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, OpenOptions};
+use std::io;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::sync::Mutex;
+
+use nfd::Response;
+use once_cell::sync::Lazy;
 use tauri::InvokeError;
 
-type StaticType<T> = Lazy<Mutex<Option<T>>>;
+use app::mutex_lock;
 
-static DICT: StaticType<BTreeMap<String, Vec<String>>> = Lazy::new(|| Mutex::new(None));
-static HEADER: StaticType<String> = Lazy::new(|| Mutex::new(None));
-static INVERSE_DICT: StaticType<HashMap<String, Vec<String>>> = Lazy::new(|| Mutex::new(None));
+type StaticType<T> = Lazy<Mutex<Option<T>>>;
+macro_rules! static_type_initializer {
+    () => {
+        Lazy::new(|| Mutex::new(None))
+    };
+}
+
+static DICT: StaticType<BTreeMap<String, Vec<String>>> = static_type_initializer!();
+static HEADER: StaticType<String> = static_type_initializer!();
+static CHAR_MAP: StaticType<HashMap<char, String>> = static_type_initializer!();
 
 fn main() {
     tauri::Builder::default()
@@ -50,47 +59,57 @@ fn pick_file() -> Option<String> {
 }
 
 #[tauri::command]
-fn load_file(path: &str) -> Result<(), InvokeError> {
-    let mut dict: BTreeMap<String, Vec<String>> = BTreeMap::new();
+fn load_file(dict_path: &str, char_map_path: &str) -> Result<(), InvokeError> {
+    let result: anyhow::Result<()> = try {
+        let mut dict: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    let file = File::open(path).map_err(|_| "Open file")?;
-    let mut lines = BufReader::new(file).lines().map(|x| x.unwrap());
-
-    let mut header = String::new();
-    for x in &mut lines {
-        header.push_str(&x);
-        header.push('\n');
-        if x == "..." {
-            break;
+        let file = File::open(dict_path)?;
+        let lines = BufReader::new(file)
+            .lines()
+            .collect::<io::Result<Vec<String>>>()?;
+        let mut header = String::new();
+        for x in &lines {
+            header.push_str(x);
+            header.push('\n');
+            if x == "..." {
+                break;
+            }
         }
-    }
-
-    for line in lines {
-        let split = line.split('\t').collect::<Vec<_>>();
-        if split.len() != 2 {
-            continue;
-        }
-        let word = split[0];
-        let code = split[1];
-        dict.entry(String::from(code))
-            .or_insert_with(Vec::new)
-            .push(String::from(word));
-    }
-
-    let mut inverse: HashMap<String, Vec<String>> = HashMap::new();
-    // construct the inverse map
-    for (code, words) in &dict {
-        for word in words {
-            inverse
-                .entry(word.clone())
+        for line in &lines {
+            let split = line.split('\t').collect::<Vec<_>>();
+            if split.len() != 2 {
+                continue;
+            }
+            let word = split[0];
+            let code = split[1];
+            dict.entry(String::from(code))
                 .or_insert_with(Vec::new)
-                .push(code.clone());
+                .push(String::from(word));
         }
-    }
+        mutex_lock!(DICT).replace(dict);
+        mutex_lock!(HEADER).replace(header);
 
-    mutex_lock!(DICT).replace(dict);
-    mutex_lock!(HEADER).replace(header);
-    mutex_lock!(INVERSE_DICT).replace(inverse);
+        let mut char_map = HashMap::new();
+        let file = BufReader::new(File::open(char_map_path)?);
+        for line in file.lines() {
+            let line = line?;
+            let split = line.split_whitespace().collect::<Vec<_>>();
+            if split.len() != 2 {
+                continue;
+            }
+            if split[0].chars().count() != 1 {
+                continue;
+            }
+            let char = split[0].chars().next().unwrap();
+            let code = split[1];
+            char_map.insert(char, String::from(code));
+        }
+        mutex_lock!(CHAR_MAP).replace(char_map);
+    };
+
+    if let Err(e) = result {
+        return Err(format!("{}", e).into());
+    }
 
     Ok(())
 }
@@ -123,42 +142,24 @@ fn write_to_file(path: &str) {
 
 #[tauri::command]
 fn compose_code(word: &str) -> Option<String> {
-    let guard = mutex_lock!(INVERSE_DICT);
-    let inverse_map = guard.as_ref().unwrap();
+    let guard = mutex_lock!(CHAR_MAP);
+    let char_map = guard.as_ref().unwrap();
 
-    let look_up = |char: char| {
-        let Some(codes) = inverse_map.get(&format!("{}", char))
-            else { return None };
-        let result = codes.iter().max_by(|a, b| a.len().cmp(&b.len()));
-        result
-            .map(|x| {
-                if x.len() < 2 {
-                    // Wubi code composition needs full code
-                    None
-                } else {
-                    Some(x)
-                }
-            })
-            .flatten()
-    };
-    let look_up_multiple = |chars: &[char]| {
+    let look_up = |chars: &[char]| {
         let mut codes = Vec::with_capacity(chars.len());
         for c in chars {
-            let Some(code) = look_up(*c) else { return None };
+            let Some(code) = char_map.get(c) else { return None };
             codes.push(code);
         }
         Some(codes)
     };
 
     let chars = word.chars().collect::<Vec<_>>();
+    // not compose for single-char
     match chars.len() {
-        1 => {
-            // just return itself
-            return look_up(chars[0]).map(|x| x.clone());
-        }
         2 => {
             // take: xx-- xx--
-            let Some(codes) = look_up_multiple(&[chars[0], chars[1]])
+            let Some(codes) = look_up(&[chars[0], chars[1]])
                 else { return None };
             Some(format!(
                 "{}{}",
@@ -168,7 +169,7 @@ fn compose_code(word: &str) -> Option<String> {
         }
         3 => {
             // take: x--- x--- xx--
-            let Some(codes) = look_up_multiple(&[chars[0], chars[1], chars[2]])
+            let Some(codes) = look_up(&[chars[0], chars[1], chars[2]])
                 else { return None };
             Some(format!(
                 "{}{}{}",
@@ -177,9 +178,9 @@ fn compose_code(word: &str) -> Option<String> {
                 String::from_iter(codes[2].chars().take(2))
             ))
         }
-        x @ _ if x >= 4 => {
+        x if x >= 4 => {
             // take: x--- x--- x--- ---- ... ---- x---
-            let Some(codes) = look_up_multiple(&[
+            let Some(codes) = look_up(&[
                 chars[0],
                 chars[1],
                 chars[2],
