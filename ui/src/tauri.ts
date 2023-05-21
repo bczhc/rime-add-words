@@ -43,4 +43,13 @@ export module tauri {
             words: words,
         })
     }
+
+    interface AppArgs {
+        dictPath: string | null,
+        charMapPath: string | null,
+    }
+
+    export async function getAppArgs() {
+        return await invoke<AppArgs>('get_app_args');
+    }
 }

@@ -9,7 +9,7 @@ const CIRCLED_NUMBERS = [...'①②③④⑤⑥⑦⑧⑨⓪'] as string[]
 
 let codeInput: JQuery | null = null
 
-function onLoaded() {
+async function onLoaded() {
     let wubiContentDiv = $('#wubi-content-div');
     let loadButton = $("#load-button");
     let dictPickFileButton = $("#dict-pick-file");
@@ -18,6 +18,12 @@ function onLoaded() {
     codeInput = $("#code-input");
     let addWordsCodeInputEl = $('#add-words-code-input');
     let addWordsWordInputEl = $('#add-words-word-input');
+    let dictPathSpan = $("#dict-path-span");
+    let charMapPathSpan = $("#char-map-path-span");
+
+    let appArgs = await tauri.getAppArgs();
+    dictPathSpan.text(appArgs.dictPath || '');
+    charMapPathSpan.text(appArgs.charMapPath || '');
 
     let setWubiDivEnabled = (enabled: boolean) => {
         wubiContentDiv.find('*').prop('disabled', !enabled);
@@ -25,11 +31,9 @@ function onLoaded() {
     setWubiDivEnabled(false);
 
     let wordsList = new WordsList();
-    let dictPath: string | null = null;
-    let charMapPath: string | null = null;
 
     let writeToFile = async () => {
-        await tauri.writeToFile(dictPath!);
+        await tauri.writeToFile(dictPathSpan.text());
     }
 
     wordsList.onUpdate = async wordList => {
@@ -45,23 +49,21 @@ function onLoaded() {
     dictPickFileButton.on("click", async () => {
         let file = await tauri.pickFile()
         if (file != null) {
-            dictPath = file;
-            $("#path-span").text(file);
+            dictPathSpan.text(file);
         }
     });
 
     charMapPickFileButton.on("click", async () => {
         let file = await tauri.pickFile()
         if (file != null) {
-            charMapPath = file;
-            $("#char-map-span").text(file);
+            charMapPathSpan.text(file);
         }
     });
 
     loadButton.on("click", async () => {
         loadButton.prop("disabled", true);
         try {
-            await tauri.loadFile(dictPath!, charMapPath!)
+            await tauri.loadFile(dictPathSpan.text(), charMapPathSpan.text());
             setWubiDivEnabled(true);
         } catch (e) {
             loadButton.prop("disabled", false);

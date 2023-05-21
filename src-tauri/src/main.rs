@@ -4,14 +4,17 @@
     windows_subsystem = "windows"
 )]
 
+use clap::Parser;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::sync::Mutex;
 
+use app::cli::AppArgs;
 use nfd::Response;
 use once_cell::sync::Lazy;
+use serde::Serialize;
 use tauri::InvokeError;
 
 use app::mutex_lock;
@@ -26,11 +29,15 @@ macro_rules! static_type_initializer {
 static DICT: StaticType<BTreeMap<String, Vec<String>>> = static_type_initializer!();
 static HEADER: StaticType<String> = static_type_initializer!();
 static CHAR_MAP: StaticType<HashMap<char, String>> = static_type_initializer!();
+static APP_ARGS: StaticType<AppArgs> = static_type_initializer!();
 
 fn main() {
+    let args = AppArgs::parse();
+    println!("{:?}", args);
+    mutex_lock!(APP_ARGS).replace(args);
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            greet,
             pick_file,
             load_file,
             write_to_file,
@@ -38,14 +45,10 @@ fn main() {
             add_word,
             query_words,
             update_words,
+            get_app_args,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}!", name)
 }
 
 #[tauri::command]
@@ -56,6 +59,11 @@ fn pick_file() -> Option<String> {
         Response::OkayMultiple(_) => None,
         Response::Cancel => None,
     }
+}
+
+#[tauri::command]
+fn get_app_args() -> impl Serialize {
+    mutex_lock!(APP_ARGS).as_ref().unwrap().clone()
 }
 
 #[tauri::command]
