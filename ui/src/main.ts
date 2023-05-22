@@ -21,6 +21,20 @@ async function onLoaded() {
     let dictPathSpan = $("#dict-path-span");
     let charMapPathSpan = $("#char-map-path-span");
 
+    interface WordEntry {
+        word: string,
+        code: string | null,
+    }
+
+    let batchAddWordsBox = {
+        wordList: [] as WordEntry[],
+        wordListIndex: -1,
+        textarea: $("#batch-add-words-ta"),
+        loadButton: $("#batch-add-words-load-btn"),
+        nextButton: $("#batch-add-words-next-btn"),
+        previousButton: $("#batch-add-words-previous-btn"),
+    };
+
     let appArgs = await tauri.getAppArgs();
     dictPathSpan.text(appArgs.dictPath || '');
     charMapPathSpan.text(appArgs.charMapPath || '');
@@ -71,11 +85,15 @@ async function onLoaded() {
         }
     });
 
-    addWordsWordInputEl.on("input", async () => {
+    let updateComposedCode = async () => {
         let result = await tauri.composeCode(addWordsWordInputEl.val() as string);
         addWordsCodeInputEl.val(result || '')
         codeInput!.val(addWordsCodeInputEl.val() as string);
         await wordsList.updateWordsList()
+    };
+
+    addWordsWordInputEl.on("input", async () => {
+        await updateComposedCode();
     });
 
     addButton.on("click", async () => {
@@ -87,6 +105,57 @@ async function onLoaded() {
         } catch (e) {
             dialog.message(`Error: ${e}`).then();
         }
+    });
+
+    batchAddWordsBox.loadButton.on('click', async () => {
+        batchAddWordsBox.wordList = (batchAddWordsBox.textarea.val() as string).split('\n')
+            .filter(x => x != '')
+            .map(x => {
+                if (x.match(/\s/)) {
+                    let split = x.split(/\s+/);
+                    return {
+                        word: split[0],
+                        code: split[1],
+                    }
+                } else {
+                    return {
+                        word: x,
+                        code: null
+                    }
+                }
+            });
+        batchAddWordsBox.wordListIndex = -1;
+        await dialog.message(`成功载入${batchAddWordsBox.wordList.length}条`);
+    });
+    let batchAddWordsUpdate = async (entry: WordEntry) => {
+        addWordsWordInputEl.val(entry.word);
+        if (entry.code != null) {
+            addWordsCodeInputEl.val(entry.code);
+            codeInput!.val(entry.code);
+            await wordsList.updateWordsList();
+        } else {
+            await updateComposedCode();
+        }
+    };
+    batchAddWordsBox.nextButton.on('click', async () => {
+        ++batchAddWordsBox.wordListIndex;
+        let entry = batchAddWordsBox.wordList[batchAddWordsBox.wordListIndex];
+        if (entry == undefined) {
+            await dialog.message('结束');
+            --batchAddWordsBox.wordListIndex;
+            return
+        }
+        await batchAddWordsUpdate(entry);
+    });
+    batchAddWordsBox.previousButton.on('click', async () => {
+        --batchAddWordsBox.wordListIndex;
+        if (batchAddWordsBox.wordListIndex == -1) {
+            await dialog.message('到头了');
+            ++batchAddWordsBox.wordListIndex;
+            return
+        }
+        let entry = batchAddWordsBox.wordList[batchAddWordsBox.wordListIndex];
+        await batchAddWordsUpdate(entry);
     });
 }
 
