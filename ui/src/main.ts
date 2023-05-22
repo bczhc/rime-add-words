@@ -21,6 +21,17 @@ async function onLoaded() {
     let dictPathSpan = $("#dict-path-span");
     let charMapPathSpan = $("#char-map-path-span");
     let shortcutCB = $("#shortcut-cb");
+    let allInputs = $('input, textarea');
+
+    let ifInputsFocused = () => {
+        let anyFocused = false;
+        allInputs.each((_i, obj) => {
+            if ($(obj).is(':focus')) {
+                anyFocused = true;
+            }
+        });
+        return anyFocused;
+    };
 
     interface WordEntry {
         word: string,
@@ -160,7 +171,7 @@ async function onLoaded() {
     });
 
     document.addEventListener('keydown', e => {
-        if (!shortcutCB.is(':checked')) {
+        if (!shortcutCB.is(':checked') || ifInputsFocused()) {
             return;
         }
         switch (e.code) {
