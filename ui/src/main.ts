@@ -179,6 +179,11 @@ async function onLoaded() {
             default:
         }
     });
+
+    addWordsCodeInputEl.on('input', async () => {
+        codeInput!.val(addWordsCodeInputEl.val() as string);
+        await wordsList.updateWordsList();
+    });
 }
 
 class WordsList {
