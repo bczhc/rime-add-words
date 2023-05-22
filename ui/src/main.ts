@@ -20,6 +20,7 @@ async function onLoaded() {
     let addWordsWordInputEl = $('#add-words-word-input');
     let dictPathSpan = $("#dict-path-span");
     let charMapPathSpan = $("#char-map-path-span");
+    let shortcutCB = $("#shortcut-cb");
 
     interface WordEntry {
         word: string,
@@ -156,6 +157,27 @@ async function onLoaded() {
         }
         let entry = batchAddWordsBox.wordList[batchAddWordsBox.wordListIndex];
         await batchAddWordsUpdate(entry);
+    });
+
+    document.addEventListener('keydown', e => {
+        if (!shortcutCB.is(':checked')) {
+            return;
+        }
+        switch (e.code) {
+            case 'KeyA':
+                // add word
+                addButton.trigger('click');
+                break;
+            case 'keyS':
+                // previous
+                batchAddWordsBox.previousButton.trigger('click');
+                break;
+            case 'keyD':
+                // next
+                batchAddWordsBox.nextButton.trigger('click');
+                break;
+            default:
+        }
     });
 }
 
