@@ -168,11 +168,11 @@ async function onLoaded() {
                 // add word
                 addButton.trigger('click');
                 break;
-            case 'keyS':
+            case 'KeyS':
                 // previous
                 batchAddWordsBox.previousButton.trigger('click');
                 break;
-            case 'keyD':
+            case 'KeyF':
                 // next
                 batchAddWordsBox.nextButton.trigger('click');
                 break;
