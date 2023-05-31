@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import vue from '@vitejs/plugin-vue';
 
 // https://vitejs.dev/config/
 // noinspection JSUnusedGlobalSymbols
@@ -22,4 +23,5 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
+  plugins: [vue()]
 });
